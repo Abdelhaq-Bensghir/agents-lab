@@ -12,7 +12,7 @@ Each phase adds one concept and is tagged in Git, so the history shows the progr
 | 1. Local agent | First ADK agent with a mock tool, run locally | ✅ Done | `v0.1-local-agent` |
 | 2. Real tool | Agent answers questions on BigQuery public data with ADK's built-in toolset | ✅ Done | `v0.2-bigquery` |
 | 3. MCP server | Custom MCP server exposing BigQuery tools with cost guardrails, consumed by an ADK agent | ✅ Done | `v0.3-mcp` |
-| 4. Deployment | Agent deployed to Agent Runtime (Vertex AI) | ⏳ Next | |
+| 4. Deployment | Agent deployed to Agent Runtime (Vertex AI) | 🚧 In progress | |
 | 5. Gemini Enterprise | Agent registered and used in Gemini Enterprise | Planned | |
 
 ## How an agent works here
@@ -39,7 +39,7 @@ sequenceDiagram
 
 ## Phase 3: a custom BigQuery MCP server
 
-The BigQuery tools live in a separate program, [`mcp_servers/bigquery/server.py`](mcp_servers/bigquery/server.py), that speaks the [Model Context Protocol](https://modelcontextprotocol.io). Any MCP client can use it: the ADK agent `mcp_agent`, but also Claude Code, Gemini CLI or the MCP Inspector. The agent starts the server as a subprocess and talks to it over stdio.
+The BigQuery tools live in a separate program, [`mcp_agent/bigquery_mcp_server.py`](mcp_agent/bigquery_mcp_server.py), that speaks the [Model Context Protocol](https://modelcontextprotocol.io). Any MCP client can use it: the ADK agent `mcp_agent`, but also Claude Code, Gemini CLI or the MCP Inspector. The agent starts the server as a subprocess and talks to it over stdio.
 
 ```mermaid
 flowchart LR
@@ -56,7 +56,7 @@ flowchart LR
 - Only `SELECT` statements are accepted.
 - Queries that would scan more than **1 GB** are refused; `maximum_bytes_billed` adds a second, server-side cap.
 - At most 100 rows are returned to the model.
-- Errors are returned as messages rather than raised, so the model can read them and fix its query.
+- Errors (refusals, invalid SQL, unknown tables) are returned as messages rather than raised, so the model can read them and fix its query.
 
 ### Test results
 
@@ -73,22 +73,18 @@ flowchart LR
 
 ```
 gcp-agents-lab/
-├── pyproject.toml            # Project manifest (Python version, dependencies)
-├── uv.lock                   # Exact versions of every package, for reproducibility
-├── my_agent/                 # Phase 1: first agent, mock tool
-├── bq_agent/                 # Phase 2: ADK's built-in BigQueryToolset
-├── mcp_agent/                # Phase 3: MCP client agent
-│   ├── agent.py              # Starts the MCP server and uses its tools
-│   └── .env.example          # Configuration template (the real .env is never committed)
-├── mcp_servers/
-│   └── bigquery/
-│       └── server.py         # Phase 3: the MCP server
+├── pyproject.toml              # Project manifest (Python version, dependencies)
+├── uv.lock                     # Exact versions of every package, for reproducibility
+├── my_agent/                   # Phase 1: first agent, mock tool
+├── bq_agent/                   # Phase 2: ADK's built-in BigQueryToolset
+├── mcp_agent/                  # Phase 3: MCP client agent
+│   ├── agent.py                # Starts the MCP server and uses its tools
+│   ├── bigquery_mcp_server.py  # The MCP server, kept in the agent folder so it is deployed with it
+│   └── .env.example            # Configuration template (the real .env is never committed)
 ├── scripts/
-│   ├── check_setup.py        # Checks which Google credentials are used (BigQuery dry run)
-│   └── test_mcp_server.py    # Tests the MCP server alone, without ADK or Gemini
+│   └── test_mcp_server.py      # Tests the MCP server alone, without ADK or Gemini
 └── docs/
-    ├── decisions.md          # Why each technical choice was made
-    ├── local-setup.md        # Separate work and personal gcloud credentials
+    ├── decisions.md            # Why each technical choice was made
     └── images/
 ```
 
@@ -133,4 +129,3 @@ On Windows, if `adk web` raises a `NotImplementedError`, add `--no-reload`.
 ## Documentation
 
 - [Technical decisions](docs/decisions.md): the choices made in this project and why.
-- [Local setup](docs/local-setup.md): separate work and personal gcloud credentials on one machine.

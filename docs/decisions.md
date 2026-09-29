@@ -80,7 +80,7 @@ Each entry records a choice made in this project, the alternatives considered, a
 
 **Context:** phase 2 used ADK's built-in `BigQueryToolset`, where the tools live inside the agent process and only ADK can use them. Google also provides ready-made MCP servers for databases.
 
-**Decision:** write a small MCP server in Python (`mcp_servers/bigquery/server.py`) exposing three BigQuery tools, and connect the ADK agent to it with `McpToolset` over stdio.
+**Decision:** write a small MCP server in Python (`mcp_agent/bigquery_mcp_server.py`, moved into the agent folder in phase 4 so it is deployed with the agent) exposing three BigQuery tools, and connect the ADK agent to it with `McpToolset` over stdio.
 
 **Why:**
 - The tools become reusable: any MCP client (ADK, Claude Code, Gemini CLI, MCP Inspector) can use the same server.
@@ -108,7 +108,7 @@ Each entry records a choice made in this project, the alternatives considered, a
 
 ## D8. Environment passed explicitly to the MCP server
 
-**Context:** the MCP SDK starts a stdio server with only a minimal set of system environment variables, for security. `CLOUDSDK_CONFIG` (which selects the personal gcloud settings folder, see [local-setup.md](local-setup.md)) is not in that set.
+**Context:** the MCP SDK starts a stdio server with only a minimal set of system environment variables, for security. `CLOUDSDK_CONFIG` (used locally to select a separate gcloud settings folder) is not in that set.
 
 **Decision:** the agent builds the server's environment from `get_default_environment()` and adds only `CLOUDSDK_CONFIG` and `GOOGLE_CLOUD_PROJECT`.
 
