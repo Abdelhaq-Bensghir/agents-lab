@@ -1,17 +1,21 @@
 """MCP server exposing read-only, cost-guarded BigQuery tools."""
 import json
 import os
-
+import google.auth
 from google.cloud import bigquery
 from mcp.server.mcpserver import MCPServer
+from google.api_core.exceptions import GoogleAPIError
 
 # Billing project, read from the environment (never hard-coded)
-PROJECT_ID = os.environ["GOOGLE_CLOUD_PROJECT"]
+# Credentials and default project come from ADC: the personal ADC file locally,
+# the metadata server on Agent Runtime. GOOGLE_CLOUD_PROJECT overrides the project if set.
+credentials, default_project = google.auth.default()
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT") or default_project # A or B : si A est vide (None), Python prend B
 MAX_BYTES = 1_000_000_000  # Refuse any query that would scan more than 1 GB
 MAX_ROWS = 100             # Never send more than 100 rows back to the model
 
 mcp = MCPServer("bigquery-readonly") # MCP Server creation
-client = bigquery.Client(project=PROJECT_ID)  # Credentials found through ADC
+client = bigquery.Client(project=PROJECT_ID, credentials=credentials)  # Credentials found through ADC
 
 # MCP tools the model can call
 
@@ -48,6 +52,30 @@ def run_query(sql: str) -> dict:
     rows = json.loads(json.dumps(rows, default=str))
     return {"status": "success", "bytes_scanned": dry.total_bytes_processed, "rows": rows}
 
+@mcp.tool()
+def run_query(sql: str) -> dict:
+    """Run a read-only SQL SELECT query and return at most 100 rows.
+    Queries that would scan more than 1 GB are refused."""
+    try:
+        # 1. Dry run: BigQuery validates the query and estimates its cost, without running it
+        dry = client.query(sql, job_config=bigquery.QueryJobConfig(dry_run=True, use_query_cache=False))
+        if dry.statement_type != "SELECT":
+            return {"status": "error", "message": "Only SELECT queries are allowed."}
+        if dry.total_bytes_processed > MAX_BYTES:
+            gb = dry.total_bytes_processed / 1e9
+            return {"status": "error",
+                    "message": f"Query would scan {gb:.1f} GB (limit 1 GB). Select fewer columns or filter more."}
+
+        # 2. Real run, with a hard billing cap as a second safety net
+        job = client.query(sql, job_config=bigquery.QueryJobConfig(maximum_bytes_billed=MAX_BYTES))
+        rows = [dict(row) for row in job.result(max_results=MAX_ROWS)]
+    except GoogleAPIError as error:
+        # Invalid SQL, unknown table, permission denied...: send the reason back to the model
+        return {"status": "error", "message": str(error)}
+
+    # Dates and decimals are not JSON-serializable: convert them to text
+    rows = json.loads(json.dumps(rows, default=str))
+    return {"status": "success", "bytes_scanned": dry.total_bytes_processed, "rows": rows}
 
 if __name__ == "__main__":
     mcp.run(transport="stdio") # the server communicates with the agent in standard input/output

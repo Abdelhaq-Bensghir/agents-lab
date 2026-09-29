@@ -12,7 +12,7 @@ if not os.environ.get("GOOGLE_CLOUD_PROJECT"):
     raise RuntimeError("GOOGLE_CLOUD_PROJECT is not set. Add it to mcp_agent/.env")
 
 # Path to the server, computed from this file's location (works on any machine)
-SERVER = Path(__file__).resolve().parent.parent / "mcp_servers" / "bigquery" / "server.py"
+SERVER = Path(__file__).resolve().parent / "bigquery_mcp_server.py"
 
 # The server is a child process. For security, MCP only passes it a minimal set of
 # environment variables by default, so we explicitly add the two it needs.
