@@ -14,7 +14,7 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import get_default_environment, stdio_client
 
-SERVER = Path(__file__).resolve().parent.parent / "mcp_servers" / "bigquery" / "server.py"
+SERVER = Path(__file__).resolve().parent.parent / "mcp_agent" / "bigquery_mcp_server.py"
 
 
 async def main():
