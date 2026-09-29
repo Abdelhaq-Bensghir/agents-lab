@@ -54,7 +54,9 @@ Each entry records a choice made in this project, the alternatives considered, a
 
 ---
 
-## D4. `gemini-3.5-flash-lite` as the default model
+## D4. `gemini-3.5-flash-lite` as the default model for local development
+
+*Still valid for `my_agent` and `bq_agent` (free tier). For the deployed `mcp_agent`, superseded by [D11](#d11-gemini-25-flash-lite-in-europe-west1-for-the-deployed-agent).*
 
 **Context:** several Gemini models are available on the free tier, with very different daily quotas.
 
@@ -133,3 +135,64 @@ Each entry records a choice made in this project, the alternatives considered, a
 **Decision:** project IDs, account names and paths are read from environment variables (`.env`, never committed) or written as placeholders in the docs. Screenshots are checked before being committed.
 
 **Why:** the repository is public. The code only contains variable names such as `GOOGLE_CLOUD_PROJECT`; the values stay on the machine that runs it.
+
+---
+
+## D11. `gemini-2.5-flash-lite` in `europe-west1` for the deployed agent
+
+**Context:** the first deployment to Agent Runtime in `europe-west1` failed with `404 NOT_FOUND` for `gemini-3.5-flash-lite`. On Agent Runtime, the agent calls Gemini in the region where it runs. A small script (`scripts/check_model_availability.py`) tested four models in three locations on this project:
+
+| Model | `global` | `us-central1` | `europe-west1` |
+|---|---|---|---|
+| `gemini-3.5-flash-lite` | OK | 404 | 404 |
+| `gemini-3.5-flash` | OK | 404 | 404 |
+| `gemini-3.1-flash-lite` | OK | 404 | 404 |
+| `gemini-2.5-flash-lite` | OK | OK | OK |
+
+The Gemini 3.x models were only available on the `global` endpoint.
+
+**Options considered:**
+- **3.x model on the `global` endpoint:** most recent models, same per-token price, but Google chooses where each request is processed. Data residency cannot be guaranteed, and organization policies restricting resource locations no longer apply to model calls.
+- **`gemini-2.5-flash-lite` on a regional endpoint:** processing stays in a chosen region.
+
+**Decision:** deploy to Agent Runtime in `europe-west1` (Belgium) with `gemini-2.5-flash-lite`, called through Vertex AI in the same region.
+
+**Why:**
+- Requests, agent and model stay in the EU, which is what a European company would require for its own data (GDPR, data residency).
+- `gemini-2.5-flash-lite` is also about 5 times cheaper than `gemini-3.5-flash-lite` (around $0.10 / $0.40 per million input / output tokens, against $0.50 / $2.00).
+- It passed the same three tests as the 3.x model: correct SQL on `usa_names`, the 910 GB query refused by the server guardrail, and an invalid column reported back to the user with the table schema.
+
+**Trade-offs:**
+- Older and less capable model; enough for three tools and simple SQL, to be revisited for more complex tasks.
+- The model will be retired by Google at some point: check its discontinuation date and switch before it.
+- The data itself (`bigquery-public-data`) is stored in the US; BigQuery runs each query where the data lives, and only the small result comes back to Europe. With real European data, the dataset would also be in the EU.
+
+**Lesson:** the local test with the final configuration (same model, same region, Vertex AI) must pass before deploying. A local `adk web` run with the deployment's `.env` would have shown the same 404 in seconds.
+
+---
+
+## D12. Quota project set explicitly in the MCP server
+
+**Context:** once deployed, every BigQuery call from the MCP server failed with `403: BigQuery API has not been used in project <number> before or it is disabled`, although the API was enabled in this project. The number was not this project's: it was the home project of the Google-managed service agent that Agent Runtime uses as its identity. Locally, the calls worked because the ADC file has a quota project set (`gcloud auth application-default set-quota-project`); the service agent's credentials have none, so API usage was attributed to Google's project.
+
+**Decision:**
+- In the server, `credentials.with_quota_project(PROJECT_ID)` makes every call count against this project.
+- The service agent gets two roles on the project, and nothing more: `roles/bigquery.jobUser` (run queries) and `roles/serviceusage.serviceUsageConsumer` (use this project's enabled APIs as quota project). Public data is already readable by any authenticated identity.
+
+**Also changed:** all three tools now catch BigQuery errors and return them as messages. In the first cloud tests, `list_tables` and `get_table_schema` raised exceptions, so the agent only saw "an error occurred"; the real cause was found in Cloud Logging. With errors returned, the agent reports the exact reason itself.
+
+**Lesson:** code that works locally can fail in the cloud only because the identity differs. The deployed agent does not run as the developer: its identity only has the permissions and settings given to it explicitly.
+
+---
+
+## D13. Step-by-step instruction for a small model
+
+**Context:** with `gemini-2.5-flash-lite` (D11), the deployed agent sometimes guessed table names, asked the user to choose between tables, and, worse, answered without calling any tool, for example stating that an existing table did not exist.
+
+**Decision:** rewrite the instruction as explicit steps and rules: list the tables before querying and never guess a name; pick the table without asking for confirmation; run SQL given by the user as is; only state facts that come from a tool call made for the current message; retry once after an error; explain cost refusals.
+
+**Result:** the natural-language question and the 910 GB query now go through the tools every time they were tested, and false statements stopped. One known limitation remains: for `SELECT prenom FROM ...` asked after the schema had already been read in the same session, the model answered correctly from that earlier schema without running the query.
+
+**Why not a bigger model right away:** the instruction costs nothing and fixed most of the problem. A stronger model (`gemini-2.5-flash`) remains the next option if reliability matters more than cost.
+
+**Next step:** measure reliability instead of judging from a few manual runs, with ADK's evaluation tooling (the same questions run many times, success rate counted).

@@ -12,8 +12,8 @@ Each phase adds one concept and is tagged in Git, so the history shows the progr
 | 1. Local agent | First ADK agent with a mock tool, run locally | ✅ Done | `v0.1-local-agent` |
 | 2. Real tool | Agent answers questions on BigQuery public data with ADK's built-in toolset | ✅ Done | `v0.2-bigquery` |
 | 3. MCP server | Custom MCP server exposing BigQuery tools with cost guardrails, consumed by an ADK agent | ✅ Done | `v0.3-mcp` |
-| 4. Deployment | Agent deployed to Agent Runtime (Vertex AI) | 🚧 In progress | |
-| 5. Gemini Enterprise | Agent registered and used in Gemini Enterprise | Planned | |
+| 4. Deployment | `mcp_agent` and its MCP server deployed to Agent Runtime (Vertex AI, `europe-west1`) | ✅ Done | `v0.4-deploy` |
+| 5. Gemini Enterprise | Agent registered and used in Gemini Enterprise | ⏳ Next | |
 
 ## How an agent works here
 
@@ -35,7 +35,6 @@ sequenceDiagram
     A->>U: Answer
 ```
 
-![ADK web Events tab showing the tool call](docs/images/adk-web-events.png)
 
 ## Phase 3: a custom BigQuery MCP server
 
@@ -66,8 +65,13 @@ flowchart LR
 | List the columns of `github_repos.commits` | Used `get_table_schema` (metadata only) | ✅ Answered without scanning any data |
 | `SELECT * FROM github_repos.commits LIMIT 10` | Called `run_query` | 🛑 Refused by the dry run: **910.6 GB** estimated. `LIMIT` does not reduce the bytes BigQuery scans. The agent explained the refusal and suggested selecting fewer columns. |
 
-![Agent query on usa_names](docs/images/mcp-q1-usa-names.png)
-![Guardrail refusing a 910 GB query](docs/images/mcp-q3-guardrail.png)
+Screenshots of these tests: [`docs/images/local_test/`](docs/images/local_test/)
+
+## Phase 4: deployed to Agent Runtime
+
+`mcp_agent` and its MCP server run on Google Cloud's Agent Runtime in `europe-west1`, with `gemini-2.5-flash-lite` called through Vertex AI in the same region. The MCP server runs as a subprocess inside the agent's container. On Agent Runtime, the agent's identity is a Google-managed service agent with two roles on the project: `roles/bigquery.jobUser` and `roles/serviceusage.serviceUsageConsumer`. See decisions [D11](docs/decisions.md#d11-gemini-25-flash-lite-in-europe-west1-for-the-deployed-agent), [D12](docs/decisions.md#d12-quota-project-set-explicitly-in-the-mcp-server) and [D13](docs/decisions.md#d13-step-by-step-instruction-for-a-small-model).
+
+Screenshots of the tests in the Agent Runtime playground: [`docs/images/vertex_ai_playground_test/`](docs/images/vertex_ai_playground_test/)
 
 ## Repository structure
 
@@ -124,7 +128,7 @@ On Windows, if `adk web` raises a `NotImplementedError`, add `--no-reload`.
 |---|---|---|---|
 | `my_agent` | Tells the time in a city (mock data, to learn the tool-call loop) | `gemini-3.5-flash-lite` | `get_current_time` |
 | `bq_agent` | Answers questions on BigQuery public data | `gemini-3.5-flash-lite` | ADK `BigQueryToolset`, write operations blocked |
-| `mcp_agent` | Same questions, through the custom MCP server | `gemini-3.5-flash-lite` | `list_tables`, `get_table_schema`, `run_query` (via MCP) |
+| `mcp_agent` | Same questions, through the custom MCP server; deployed to Agent Runtime in `europe-west1` | `gemini-2.5-flash-lite` (Vertex AI) | `list_tables`, `get_table_schema`, `run_query` (via MCP) |
 
 ## Documentation
 
