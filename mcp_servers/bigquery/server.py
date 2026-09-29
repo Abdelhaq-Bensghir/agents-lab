@@ -3,14 +3,14 @@ import json
 import os
 
 from google.cloud import bigquery
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 # Billing project, read from the environment (never hard-coded)
 PROJECT_ID = os.environ["GOOGLE_CLOUD_PROJECT"]
 MAX_BYTES = 1_000_000_000  # Refuse any query that would scan more than 1 GB
 MAX_ROWS = 100             # Never send more than 100 rows back to the model
 
-mcp = FastMCP("bigquery-readonly") # MCP Server creation
+mcp = MCPServer("bigquery-readonly") # MCP Server creation
 client = bigquery.Client(project=PROJECT_ID)  # Credentials found through ADC
 
 # MCP tools the model can call
@@ -50,4 +50,4 @@ def run_query(sql: str) -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run()  # Default transport: stdio
+    mcp.run(transport="stdio") # the server communicates with the agent in standard input/output
