@@ -1,6 +1,6 @@
 # gcp-agents-lab
 
-Hands-on lab for building AI agents on Google Cloud with the [Agent Development Kit (ADK)](https://adk.dev), from a first local agent to a deployment on Agent Runtime and Gemini Enterprise.
+Hands-on lab for building AI agents on Google Cloud with the [Agent Development Kit (ADK)](https://adk.dev), from a first local agent to a deployment on Agent Runtime.
 
 Each phase adds one concept and is tagged in Git, so the history shows the progression step by step.
 
@@ -13,7 +13,10 @@ Each phase adds one concept and is tagged in Git, so the history shows the progr
 | 2. Real tool | Agent answers questions on BigQuery public data with ADK's built-in toolset | ✅ Done | `v0.2-bigquery` |
 | 3. MCP server | Custom MCP server exposing BigQuery tools with cost guardrails, consumed by an ADK agent | ✅ Done | `v0.3-mcp` |
 | 4. Deployment | `mcp_agent` and its MCP server deployed to Agent Runtime (Vertex AI, `europe-west1`) | ✅ Done | `v0.4-deploy` |
-| 5. Gemini Enterprise | Agent registered and used in Gemini Enterprise | ⏳ Next | |
+| 5. Gemini Enterprise | Agent registered and used in Gemini Enterprise | ⛔ Not possible with a personal account ([D14](docs/decisions.md#d14-gemini-enterprise-out-of-scope-for-this-lab)) | |
+| 6. Evaluation | Measure the agent's reliability with ADK's evaluation tooling | ⏳ Next | |
+| 7. Guardrail tests | Unit tests of the MCP server's guardrails, run by GitHub Actions | Planned | |
+| 8. Remote MCP server | MCP server deployed on its own (Cloud Run, HTTP transport) | Planned | |
 
 ## How an agent works here
 

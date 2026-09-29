@@ -196,3 +196,19 @@ The Gemini 3.x models were only available on the `global` endpoint.
 **Why not a bigger model right away:** the instruction costs nothing and fixed most of the problem. A stronger model (`gemini-2.5-flash`) remains the next option if reliability matters more than cost.
 
 **Next step:** measure reliability instead of judging from a few manual runs, with ADK's evaluation tooling (the same questions run many times, success rate counted).
+
+---
+
+## D14. Gemini Enterprise out of scope for this lab
+
+**Context:** the original goal of phase 5 was to register the deployed agent in Gemini Enterprise, Google's chat interface for organizations, using its 30-day trial.
+
+**Decision:** phase 5 is dropped. Gemini Enterprise could not be set up with the personal Google account used for this lab: the product is designed for organizations, and this project has none.
+
+**What is ready anyway:** the agent is deployed on Agent Runtime, which is the prerequisite for Gemini Enterprise. In an organization, the remaining steps would be:
+1. Create a Gemini Enterprise app in the project.
+2. Register the agent in the app (*Agents → Add agent → Custom agent via Agent Engine*), pointing to the deployed Agent Runtime resource.
+3. Grant Gemini Enterprise's own service account the Vertex AI roles it needs to call the agent (the same principle as D12: each Google service acts with its own identity, which only has the permissions given to it).
+4. Test the same questions from the Gemini Enterprise interface.
+
+**Consequence:** the roadmap continues with work that a personal account allows: measuring reliability (evaluation), testing the guardrails automatically, and deploying the MCP server on its own.
